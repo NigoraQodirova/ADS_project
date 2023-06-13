@@ -1,0 +1,221 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <map>
+#include <algorithm>
+
+// Structure to represent a node in the AVL tree
+struct Node {
+    int year;
+    std::string name;
+    int count;
+    int height;
+    Node* left;
+    Node* right;
+
+    Node(std::string name, int year, int count)
+            : name(name), year(year), count(count), height(1), left(nullptr), right(nullptr) {}
+};
+
+// Utility function to get the height of a node
+int getHeight(Node* node) {
+    if (node == nullptr) {
+        return 0;
+    }
+    return node->height;
+}
+
+// Utility function to calculate the balance factor of a node
+int getBalanceFactor(Node* node) {
+    if (node == nullptr) {
+        return 0;
+    }
+    return getHeight(node->left) - getHeight(node->right);
+}
+
+// Utility function to update the height of a node
+void updateHeight(Node* node) {
+    if (node == nullptr) {
+        return;
+    }
+    node->height = std::max(getHeight(node->left), getHeight(node->right)) + 1;
+}
+
+// Utility function to perform a right rotation
+Node* rightRotate(Node* y) {
+    Node* x = y->left;
+    Node* T2 = x->right;
+
+    x->right = y;
+    y->left = T2;
+
+    updateHeight(y);
+    updateHeight(x);
+
+    return x;
+}
+
+// Utility function to perform a left rotation
+Node* leftRotate(Node* x) {
+    Node* y = x->right;
+    Node* T2 = y->left;
+
+    y->left = x;
+    x->right = T2;
+
+    updateHeight(x);
+    updateHeight(y);
+
+    return y;
+}
+
+// Function to insert a node into the AVL tree
+Node* insert(Node* root, int year, const std::string& name, int count) {
+    if (root == nullptr) {
+        return new Node(name, year, count);
+    }
+
+    if (name < root->name) {
+        root->left = insert(root->left, year, name, count);
+    } else if (name > root->name) {
+        root->right = insert(root->right, year, name, count);
+    } else {
+        // Name already exists, update the count
+        root->count += count;
+        return root;
+    }
+
+    updateHeight(root);
+
+    int balanceFactor = getBalanceFactor(root);
+
+    // Left Left Case
+    if (balanceFactor > 1 && name < root->left->name) {
+        return rightRotate(root);
+    }
+
+    // Right Right Case
+    if (balanceFactor < -1 && name > root->right->name) {
+        return leftRotate(root);
+    }
+
+    // Left Right Case
+    if (balanceFactor > 1 && name > root->left->name) {
+        root->left = leftRotate(root->left);
+        return rightRotate(root);
+    }
+
+    // Right Left Case
+    if (balanceFactor < -1 && name < root->right->name) {
+        root->right = rightRotate(root->right);
+        return leftRotate(root);
+    }
+
+    return root;
+}
+
+// Utility function to convert a string to an integer with error checking
+int convertToInt(const std::string& str) {
+    std::istringstream iss(str);
+    int value;
+    if (!(iss >> value)) {
+        throw std::invalid_argument("Invalid argument: " + str);
+    }
+    return value;
+}
+
+// Function to perform an inorder traversal of the AVL tree and populate the data for a given name
+void inorderTraversal(Node* root, std::vector<int>& years, std::vector<int>& counts, int& maxCount) {
+    if (root == nullptr) {
+        return;
+    }
+
+    inorderTraversal(root->left, years, counts, maxCount);
+
+    years.push_back(root->year);
+    counts.push_back(root->count);
+    maxCount = std::max(maxCount, root->count);
+
+    inorderTraversal(root->right, years, counts, maxCount);
+}
+
+// Function to create a line chart using the provided data
+void createLineChart(const std::vector<int>& years, const std::vector<int>& counts, int maxCount) {
+    const int width = 60;
+    const int height = 20;
+
+    std::vector<std::string> chart(height, std::string(width, ' '));
+
+    int numYears = years.size();
+    int numCounts = counts.size();
+
+    if (numYears != numCounts) {
+        std::cout << "Invalid data!" << std::endl;
+        return;
+    }
+
+    for (int i = 0; i < numYears; i++) {
+        int x = i * (width - 1) / (numYears - 1);
+        int y = height - 1 - counts[i] * (height - 1) / maxCount;
+
+        chart[y][x] = '*';
+    }
+
+    std::cout << std::string(width, '-') << std::endl;
+
+    for (int i = 0; i < height; i++) {
+        std::cout << chart[i] << std::endl;
+    }
+
+    std::cout << std::string(width, '-') << std::endl;
+
+    for (int i = 0; i < numYears; i++) {
+        std::cout << years[i] << "\t";
+    }
+
+    std::cout << std::endl;
+}
+
+int main() {
+    std::ifstream file("C:\\Users\\acer\\CLionProjects\\untitled\\Copy of sorted.csv");
+
+    if (!file.is_open()) {
+        std::cout << "Failed to open the file!" << std::endl;
+        return 1;
+    }
+
+    std::map<std::string, Node*> avlTrees;
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string name, yearStr, countStr;
+
+        std::getline(iss, yearStr, ',');
+        std::getline(iss, name, ',');
+        std::getline(iss, countStr, ',');
+
+        std::cout << "Name: " << name << ", Year: " << yearStr << ", Count: " << countStr << std::endl;
+
+        try {
+            int year = convertToInt(yearStr);
+            int count = convertToInt(countStr);
+
+            if (avlTrees.find(name) == avlTrees.end()) {
+                avlTrees[name] = nullptr;
+            }
+
+            avlTrees[name] = insert(avlTrees[name], year, name, count);
+        } catch (const std::invalid_argument& e) {
+            std::cout << "Invalid argument in CSV file: " << e.what() << std::endl;
+            std::cout << "Line: " << line << std::endl;
+            continue;
+        }
+    }
+
+    file.close();
+
+    return 0;
+}
